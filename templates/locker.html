@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<link rel="stylesheet" href="{% static 'css/locker_style.css' %}">
+
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+
+            {% if user_email %}
+                 <div class="vault-card p-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h3 class="fw-bold mb-0">My Locker</h3>
+                        <span class="badge bg-primary">{{ user_email }}</span>
+                    </div>
+                    <hr class="border-secondary">
+                    
+                    <div class="row">
+                        {% for file in files %}
+                            <div class="col-4 mb-3 text-center">
+                                <div class="p-3 border border-secondary rounded bg-dark">
+                                    <i class="fa-solid fa-file fa-2x text-warning mb-2"></i>
+                                    <p class="small text-white text-truncate mb-0">{{ file.filename }}</p>
+                                </div>
+                            </div>
+                        {% empty %}
+                            <div class="col-12 text-center py-5">
+                                <i class="fa-solid fa-folder-open fa-3x text-secondary mb-3"></i>
+                                <p class="text-secondary">Your locker is empty.</p>
+                            </div>
+                        {% endfor %}
+                    </div>
+                 </div>
+
+            {% else %}
+                <div class="vault-card p-4 mb-4">
+                    <div class="text-center mb-4">
+                        <i class="fa-solid fa-shield-cat text-primary fs-1 mb-3"></i>
+                        <h3 class="fw-bold">Locker Access</h3>
+                        <p class="text-secondary">Enter your email to unlock or create your secure storage.</p>
+                    </div>
+
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        {% if form.errors %}
+                            <div class="alert alert-danger">
+                                {{ form.errors }}
+                            </div>
+                        {% endif %}
+
+                        <div class="mb-3">
+                            <label class="form-label small text-secondary">EMAIL ADDRESS</label>
+                            <input type="email" name="email" class="form-control bg-black text-white border-secondary" 
+                                   placeholder="you@example.com" required>
+                            <small class="text-muted">We will send a 6-digit code to this address.</small>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary w-100 fw-bold py-2">
+                            <i class="fa-solid fa-paper-plane me-2"></i> Send Access Code
+                        </button>
+                    </form>
+                </div>
+            {% endif %}
+            
+        </div>
+    </div>
+</div>
+{% endblock %}

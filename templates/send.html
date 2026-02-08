@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+    <link rel="stylesheet" href="{% static 'css/send_style.css' %}">
+
+    <div class="container">
+        {% if form.errors %}
+            <div class="alert alert-error">
+                {{ form.errors }}
+            </div>
+        {% endif %}
+
+        {% if success %}
+            <div class="success-box">
+                <h3>Transfer Ready!</h3>
+                <p>Your download code: <strong>{{ transfer.unique_code }}</strong></p>
+                <img src="data:image/png;base64,{{ qr_image }}" alt="QR Code">
+                <br>
+                <input type="text" value="{{ download_link }}" readonly>
+            </div>
+        
+        {% else %}
+            <form method="post" enctype="multipart/form-data" class="send-form-wrapper">
+                {% csrf_token %}
+                
+                <div class="send-card">
+                    <h2>Send Content</h2>
+                    <p>Your transfers are end-to-end encrypted by default.</p>
+
+                    <div class="toggle-container">
+                        <label>Use 6-digit code: </label>
+                        {{ form.use_6_digit_code }} 
+                    </div>
+
+                    <div class="upload-area">
+                        <p>Drag & drop your file(s) here</p>
+                        {{ form.file }}
+                    </div>
+
+                    <div class="security-options">
+                        <label>Password (Optional):</label>
+                        {{ form.password }}
+                    </div>
+
+                    <button type="submit" class="btn-submit">Send</button>
+                </div>
+            </form>
+        {% endif %}
+    </div>
+{% endblock %}
