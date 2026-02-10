@@ -92,7 +92,7 @@ def receive_view(request):
             try:
                 transfer = Transfer.objects.get(unique_code=code)
             except Transfer.DoesNotExist:
-                 form.add_error('code_or_link', "Transfer not found or expired.")
+                 form.add_error('code_or_link', "Invalid code.")
                  return render(request, 'receive.html', {'form': form})
 
             if transfer.is_expired:
@@ -151,3 +151,40 @@ def receive_direct_view(request, code):
     form = ReceiveForm(initial={'code_or_link': code})
     return render(request, 'receive.html', {'form': form})
 
+#this here is the code for rate limiting which will prevent a ip enter wrong pin mltiple times and then block that ip for some time
+
+from django.core.cache import cache
+from django.shortcuts import render, redirect
+
+def receive_file(request):
+    # 1. Get User IP
+    user_ip = request.META.get('REMOTE_ADDR')
+    
+    # 2. Check if this IP is blocked
+    if cache.get(f"block_{user_ip}"):
+        return render(request, 'error.html', {'message': "Too many failed attempts. Try again in 15 minutes."})
+
+    if request.method == 'POST':
+        code = request.POST.get('code_or_link')
+        
+        try:
+            # Try to find the file...
+            transfer = Transfer.objects.get(unique_code=code)
+            
+            # SUCCESS: Clear any previous bad attempts
+            cache.delete(f"attempts_{user_ip}")
+            return render(request, 'download.html', {'transfer': transfer})
+            
+        except Transfer.DoesNotExist:
+            # FAILURE: Increment attempt counter
+            key = f"attempts_{user_ip}"
+            attempts = cache.get(key, 0) + 1
+            cache.set(key, attempts, 300) # Store for 5 minutes
+            
+            # If 5 fails, BLOCK them for 15 mins
+            if attempts >= 3:
+                cache.set(f"block_{user_ip}", True, 900) 
+                
+            return render(request, 'receive.html', {'error': "Invalid Code."})
+            
+    return render(request, 'receive.html')

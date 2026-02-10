@@ -22,13 +22,13 @@ from django.conf.urls.static import static
 urlpatterns = [
     path('admin/', admin.site.urls),
     
-    # This tells Django: "Go look inside transferApp/urls.py for these paths"
+    
     path('', include('transferApp.urls')), 
     
-    # "Go look inside coreApp/urls.py"
+    
     path('core/', include('coreApp.urls')),
     
-    # "Go look inside lockerApp/urls.py"
+    
     path('locker/', include('lockerApp.urls')),
 ]
 

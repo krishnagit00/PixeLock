@@ -81,3 +81,65 @@
         font-size: 1.2rem;
         letter-spacing: 2px;
     }
+    /* Card Container */
+.custom-card {
+    background-color: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 12px;
+    padding: 30px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+}
+
+/* Tabs Styling */
+.input-tabs {
+    display: flex;
+    border-bottom: 1px solid #333;
+    cursor: pointer;
+}
+
+.input-tabs span {
+    flex: 1;
+    text-align: center;
+    padding: 12px;
+    font-weight: bold;
+    transition: all 0.3s ease;
+}
+
+.input-tabs .active {
+    color: #fff;
+    border-bottom: 2px solid #fff;
+}
+
+.input-tabs .inactive {
+    color: #666;
+    border-bottom: 2px solid transparent;
+}
+
+.input-tabs .inactive:hover {
+    color: #aaa;
+    background-color: #222;
+}
+
+/* Form Inputs */
+input[type="text"],
+input[type="password"] {
+    width: 100%;
+    background-color: #000;
+    border: 1px solid #333;
+    color: white;
+    padding: 12px;
+    border-radius: 6px;
+    font-size: 1.1rem;
+    text-align: center;
+}
+
+input:focus {
+    outline: none;
+    border-color: #666;
+}
+
+/* QR Reader Box */
+#reader {
+    width: 100%;
+    background-color: #000;
+}

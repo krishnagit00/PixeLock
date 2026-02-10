@@ -8,10 +8,7 @@ from io import BytesIO
 from django.core.files.base import ContentFile
 
 def generate_key(password=None, salt=None):
-    """
-    Generates a Fernet key. If a password is provided, derives key from password.
-    Otherwise, generates a random key.
-    """
+    """Generates a Fernet key. If password is provided, derives key using PBKDF2."""
     if password:
         if not salt:
             salt = os.urandom(16)
@@ -27,19 +24,19 @@ def generate_key(password=None, salt=None):
         return Fernet.generate_key(), None
 
 def encrypt_file(file_handle, key):
-    """Encrypts a file handle using Fernet key."""
+    
     f = Fernet(key)
     file_data = file_handle.read()
     encrypted_data = f.encrypt(file_data)
     return ContentFile(encrypted_data)
 
 def decrypt_file_data(encrypted_data, key):
-    """Decrypts bytes using Fernet key."""
+   
     f = Fernet(key)
     return f.decrypt(encrypted_data)
 
 def generate_qr_code(data):
-    """Generates a QR code image from data string."""
+    
     qr = qrcode.QRCode(
         version=1,
         error_correction=qrcode.constants.ERROR_CORRECT_L,
@@ -49,7 +46,7 @@ def generate_qr_code(data):
     qr.add_data(data)
     qr.make(fit=True)
 
-    img = qr.make_image(fill_color="black", back_color="white")
+    img = qr.make_image(fill_color="white", back_color="black")
     buffer = BytesIO()
     img.save(buffer, format="PNG")
     return base64.b64encode(buffer.getvalue()).decode()

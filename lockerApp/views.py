@@ -1,82 +1,120 @@
 from django.shortcuts import render, redirect
-from django.core.mail import send_mail
-from django.conf import settings
-from .forms import LockerLoginForm, LockerVerifyForm
-from .models import LockerUser, LockerFile, VerificationToken
-
+from django.contrib.auth.hashers import make_password, check_password
+from .forms import LockerAccessForm
+from .models import LockerUser, LockerFile
+from transferApp.utils import encrypt_file, generate_key
 def locker_login_view(request):
-    # Matches Image 2 template initially
+    # If already logged in, go straight to dashboard
+    if request.session.get('locker_user_id'):
+        return redirect('lockerApp:dashboard')
+
     if request.method == 'POST':
-        form = LockerLoginForm(request.POST)
+        form = LockerAccessForm(request.POST)
         if form.is_valid():
             email = form.cleaned_data['email']
-            
-            # Generate and save verification token
-            verification = VerificationToken.objects.create(email=email)
-            
-            # Send email (ensure EMAIL settings are configured in settings.py)
-            send_mail(
-                'Your Curato Locker Code',
-                f'Your 6-digit verification code is: {verification.token}',
-                settings.DEFAULT_FROM_EMAIL or 'noreply@curato.online',
-                [email],
-                fail_silently=False,
-            )
-            
-            # Store email in session temporarily for the next step
-            request.session['locker_auth_email'] = email
-            return redirect('lockerApp:verify')
-    else:
-        form = LockerLoginForm()
-
-    # Using locker.html for the initial login screen as per Image 2 structure
-    return render(request, 'locker.html', {'form': form, 'step': 'login'})
-
-def locker_verify_view(request):
-    # Matches verifyLocker.html template implied by file list
-    email = request.session.get('locker_auth_email')
-    if not email:
-        return redirect('lockerApp:login')
-
-    if request.method == 'POST':
-        form = LockerVerifyForm(request.POST)
-        if form.is_valid():
-            code = form.cleaned_data['code']
+            pin = form.cleaned_data['pin']
             
             try:
-                # Check lastest valid token for this email
-                token_obj = VerificationToken.objects.filter(email=email).latest('created_at')
-                if token_obj.is_valid and token_obj.token == code:
-                    # Success! Get or create user
-                    user, created = LockerUser.objects.get_or_create(email=email)
-                    
-                    # Set authorized session
+                # SCENARIO 1: User Exists -> Check PIN
+                user = LockerUser.objects.get(email=email)
+                
+                if check_password(pin, user.pin_hash):
+                    # Correct PIN: Login
                     request.session['locker_user_id'] = user.id
-                    del request.session['locker_auth_email'] # Clean up temp session
-                    
                     return redirect('lockerApp:dashboard')
                 else:
-                     form.add_error('code', "Invalid or expired code.")
-            except VerificationToken.DoesNotExist:
-                 form.add_error('code', "No verification request found.")
+                    # Wrong PIN
+                    form.add_error('pin', "Incorrect PIN for this locker.")
+            
+            except LockerUser.DoesNotExist:
+                # SCENARIO 2: New User -> Create Account & PIN
+                new_user = LockerUser.objects.create(
+                    email=email,
+                    pin_hash=make_password(pin) # Securely hash the PIN
+                )
+                request.session['locker_user_id'] = new_user.id
+                return redirect('lockerApp:dashboard')
 
     else:
-        form = LockerVerifyForm(initial={'email': email})
+        form = LockerAccessForm()
 
-    return render(request, 'verifyLocker.html', {'form': form, 'email': email})
+    return render(request, 'locker.html', {'form': form})
+
 
 def locker_dashboard_view(request):
-    # Matches Image 0 template
+    # Ensure user is logged in
     user_id = request.session.get('locker_user_id')
     if not user_id:
         return redirect('lockerApp:login')
     
-    user = LockerUser.objects.get(id=user_id)
-    files = user.files.all()
+    try:
+        user = LockerUser.objects.get(id=user_id)
+    except LockerUser.DoesNotExist:
+        del request.session['locker_user_id']
+        return redirect('lockerApp:login')
 
+    # Handle Logout
+    if request.method == 'POST' and 'logout' in request.POST:
+        del request.session['locker_user_id']
+        return redirect('lockerApp:login')
+
+    # Handle File Upload
+    if request.method == 'POST' and request.FILES.get('file'):
+            uploaded_file = request.FILES['file']
+            
+            # 1. Generate Key
+            key, _ = generate_key() 
+            
+            # 2. Encrypt
+            encrypted_blob = encrypt_file(uploaded_file, key)
+            
+            # 3. THE FIX: Give the blob the original filename
+            encrypted_blob.name = uploaded_file.name  
+            
+            # 4. Save
+            LockerFile.objects.create(
+                user=user,
+                file=encrypted_blob,
+                filename=uploaded_file.name,
+                key=key.decode()
+            )
+            return redirect('lockerApp:dashboard')
+
+    # Show Files
+    files = user.files.all().order_by('-uploaded_at')
+    
     context = {
         'user_email': user.email,
         'files': files
     }
-    # Using the template shown in Image 0
     return render(request, 'locker.html', context)
+#encrytion logic
+
+from django.http import HttpResponse, Http404
+from transferApp.utils import decrypt_file_data
+import mimetypes
+
+def download_locker_file(request, file_id):
+    # 1. Security Check: Is user logged in?
+    user_id = request.session.get('locker_user_id')
+    if not user_id:
+        return redirect('lockerApp:login')
+
+    try:
+        # 2. Get the file (and ensure it belongs to this user!)
+        locker_file = LockerFile.objects.get(id=file_id, user_id=user_id)
+
+        # 3. Read the encrypted data from disk
+        with locker_file.file.open('rb') as f:
+            encrypted_data = f.read()
+
+        # 4. Decrypt using the stored key
+        decrypted_data = decrypt_file_data(encrypted_data, locker_file.key.encode())
+
+        # 5. Serve it as a download
+        response = HttpResponse(decrypted_data, content_type=mimetypes.guess_type(locker_file.filename)[0])
+        response['Content-Disposition'] = f'attachment; filename="{locker_file.filename}"'
+        return response
+
+    except LockerFile.DoesNotExist:
+        raise Http404("File not found or access denied.")
